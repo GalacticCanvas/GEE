@@ -1,0 +1,48 @@
+// =============================
+// Analisis Kualitas Udara CO
+// Kabupaten Kediri - Juli & Agustus 2025
+// Data: Sentinel-5P (CO total column)
+// =============================
+
+// 1. Import batas wilayah (Kabupaten Kediri, Jawa Timur)
+var kediri = ee.FeatureCollection("FAO/GAUL/2015/level2")
+              .filter(ee.Filter.eq('ADM2_NAME', 'Kediri'))
+              .filter(ee.Filter.eq('ADM1_NAME', 'Jawa Timur'));
+
+// 2. Panggil data Sentinel-5P CO (Carbon Monoxide)
+var dataset = ee.ImageCollection('COPERNICUS/S5P/OFFL/L3_CO')
+                .select('CO_column_number_density')
+                .filterBounds(kediri)
+                .filterDate('2025-07-01', '2025-08-31'); // Juli & Agustus 2025
+
+// 3. Hitung rata-rata selama Juli & Agustus 2025
+var co_mean = dataset.mean().clip(kediri);
+
+// 4. Visualisasi peta
+var visParam = {
+  min: 0.02,
+  max: 0.05,
+  palette: ['blue', 'green', 'yellow', 'red']
+};
+Map.centerObject(kediri, 9);
+Map.addLayer(co_mean, visParam, 'Rata-rata CO (Jul-Agu 2025)');
+Map.addLayer(kediri, {color: 'black'}, 'Kabupaten Kediri');
+
+// 5. Statistik zonal (mean CO dalam wilayah Kediri)
+var meanDict = co_mean.reduceRegion({
+  reducer: ee.Reducer.mean(),
+  geometry: kediri,
+  scale: 1000,
+  maxPixels: 1e13
+});
+print('Rata-rata CO Kediri (mol/m²) Juli-Agustus 2025:', meanDict);
+
+Export.image.toDrive({
+  image: co_mean,
+  description: 'CO_Kediri_JulAgu2025',
+  folder: 'gee_kualitas_udara',
+  region: kediri,
+  scale: 1000,
+  crs: 'EPSG:4326',
+  maxPixels: 1e13
+});
