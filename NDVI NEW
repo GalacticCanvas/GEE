@@ -1,0 +1,44 @@
+// Wilayah studi: Kabupaten Kediri
+var kediri = ee.FeatureCollection("FAO/GAUL_SIMPLIFIED_500m/2015/level2")
+  .filter(ee.Filter.eq("ADM2_NAME", "Kediri"))
+  .filter(ee.Filter.eq("ADM1_NAME", "Jawa Timur"));
+
+// Rentang waktu Juli - Agustus
+var startDate = '2025-07-01';
+var endDate   = '2025-08-31';
+
+// Ambil Sentinel-2 SR
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+  .filterBounds(kediri)
+  .filterDate(startDate, endDate)
+  .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20));
+
+// Ambil band B4 (Red) dan B8 (NIR)
+var b4 = s2.select('B4').mean().rename('B4_mean');
+var b8 = s2.select('B8').mean().rename('B8_mean');
+
+// Gabungkan jadi 2 band
+var bands_2 = b4.addBands(b8);
+
+// Hitung NDVI dari rata-rata B4 dan B8
+var ndvi = b8.subtract(b4).divide(b8.add(b4)).rename('NDVI');
+
+// Gabungkan semua band (B4_mean, B8_mean, NDVI)
+var finalImage = bands_2.addBands(ndvi).clip(kediri);
+
+// Tampilkan di peta
+Map.centerObject(kediri, 10);
+Map.addLayer(finalImage.select('B4_mean'), {min:0, max:3000, palette:['blue','white','red']}, 'B4 Mean (Red)');
+Map.addLayer(finalImage.select('B8_mean'), {min:0, max:3000, palette:['white','green','darkgreen']}, 'B8 Mean (NIR)');
+Map.addLayer(finalImage.select('NDVI'), {min:-1, max:1, palette:['brown','yellow','green']}, 'NDVI Mean');
+
+// Export hasil ke Google Drive
+Export.image.toDrive({
+  image: finalImage.toFloat(),
+  description: 'NDVI_Juli_Agustus_Kediri',
+  folder: 'gee_ndvi',
+  fileNamePrefix: 'NDVI_Kediri_Jul_Aug_2025',
+  region: kediri.geometry(),
+  scale: 10,
+  maxPixels: 1e13
+});
